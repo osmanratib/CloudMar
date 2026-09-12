@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import FileItem from '@/models/FileItem';
 import { getFileCategory } from '@/lib/fileUtils';
+import { isCloudinaryConfigured, uploadToCloudinary } from '@/lib/cloudinary';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
@@ -101,18 +102,33 @@ export async function POST(request: NextRequest) {
     const safeBaseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileName = `${Date.now()}_${safeBaseName}_${uniqueHash}${ext}`;
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-    
-    try {
-      await mkdir(uploadDir, { recursive: true });
-    } catch {
-      // ignore
+    let fileUrl = `/uploads/${fileName}`;
+
+    // If Cloudinary is configured (or in production on Vercel)
+    if (isCloudinaryConfigured()) {
+      try {
+        const cloudResult = await uploadToCloudinary(buffer, originalName);
+        fileUrl = cloudResult.url;
+      } catch (cloudErr) {
+        console.error('Cloudinary upload error:', cloudErr);
+        return NextResponse.json({ success: false, error: 'Cloud storage upload failed. Check Cloudinary environment variables.' }, { status: 500 });
+      }
+    } else if (process.env.VERCEL) {
+      // In Vercel serverless without Cloudinary credentials configured yet:
+      // Store image as Data URL in MongoDB so uploads work immediately on Vercel!
+      const base64 = buffer.toString('base64');
+      fileUrl = `data:${mimeType};base64,${base64}`;
+    } else {
+      // Local development disk storage
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+      try {
+        await mkdir(uploadDir, { recursive: true });
+      } catch {
+        // ignore
+      }
+      const filePathOnDisk = path.join(uploadDir, fileName);
+      await writeFile(filePathOnDisk, buffer);
     }
-
-    const filePathOnDisk = path.join(uploadDir, fileName);
-    await writeFile(filePathOnDisk, buffer);
-
-    const fileUrl = `/uploads/${fileName}`;
 
     const newFile = await FileItem.create({
       title,

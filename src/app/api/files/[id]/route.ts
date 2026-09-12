@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import FileItem from '@/models/FileItem';
+import { isCloudinaryConfigured, uploadToCloudinary } from '@/lib/cloudinary';
 import { unlink, writeFile } from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
@@ -58,13 +59,6 @@ export async function PUT(request: NextRequest, context: Context) {
       }
 
       if (file) {
-        const oldFilePath = path.join(process.cwd(), 'public', 'uploads', existingFile.fileName);
-        try {
-          await unlink(oldFilePath);
-        } catch {
-          // ignore
-        }
-
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
@@ -78,14 +72,23 @@ export async function PUT(request: NextRequest, context: Context) {
         const safeBaseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
         const newFileName = `${Date.now()}_${safeBaseName}_${uniqueHash}${ext}`;
 
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-        const newFilePathOnDisk = path.join(uploadDir, newFileName);
+        let fileUrl = `/uploads/${newFileName}`;
 
-        await writeFile(newFilePathOnDisk, buffer);
+        if (isCloudinaryConfigured()) {
+          const cloudResult = await uploadToCloudinary(buffer, originalName);
+          fileUrl = cloudResult.url;
+        } else if (process.env.VERCEL) {
+          const base64 = buffer.toString('base64');
+          fileUrl = `data:${mimeType};base64,${base64}`;
+        } else {
+          const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+          const newFilePathOnDisk = path.join(uploadDir, newFileName);
+          await writeFile(newFilePathOnDisk, buffer);
+        }
 
         existingFile.originalName = originalName;
         existingFile.fileName = newFileName;
-        existingFile.fileUrl = `/uploads/${newFileName}`;
+        existingFile.fileUrl = fileUrl;
         existingFile.mimeType = mimeType;
         existingFile.size = size;
         existingFile.category = category;
@@ -122,11 +125,13 @@ export async function DELETE(request: NextRequest, context: Context) {
       return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 });
     }
 
-    const filePath = path.join(process.cwd(), 'public', 'uploads', file.fileName);
-    try {
-      await unlink(filePath);
-    } catch (fsError) {
-      console.warn('File on disk missing:', fsError);
+    if (!process.env.VERCEL) {
+      const filePath = path.join(process.cwd(), 'public', 'uploads', file.fileName);
+      try {
+        await unlink(filePath);
+      } catch (fsError) {
+        console.warn('File on disk missing:', fsError);
+      }
     }
 
     await FileItem.findByIdAndDelete(id).exec();
