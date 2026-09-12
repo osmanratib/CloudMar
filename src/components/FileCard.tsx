@@ -46,6 +46,8 @@ export default function FileCard({ file, onPreview, onEdit, onDelete }: FileCard
     }
   };
 
+  const downloadUrl = `/api/files/${file._id}/download`;
+
   return (
     <div className="bw-card group relative flex flex-col justify-between rounded-2xl p-4">
       {/* File Preview Container */}
@@ -79,9 +81,9 @@ export default function FileCard({ file, onPreview, onEdit, onDelete }: FileCard
               <Eye className="h-4 w-4" />
             </button>
             <a
-              href={file.fileUrl}
+              href={downloadUrl}
               download={file.originalName}
-              title="Download"
+              title="Download File"
               className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-800 text-white border border-zinc-700 hover:bg-zinc-700 hover:scale-110 transition"
             >
               <Download className="h-4 w-4" />

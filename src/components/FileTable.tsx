@@ -97,9 +97,9 @@ export default function FileTable({ files, onPreview, onEdit, onDelete }: FileTa
                     <Eye className="h-4 w-4" />
                   </button>
                   <a
-                    href={file.fileUrl}
+                    href={`/api/files/${file._id}/download`}
                     download={file.originalName}
-                    title="Download"
+                    title="Download File"
                     className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white transition"
                   >
                     <Download className="h-4 w-4" />

@@ -89,6 +89,8 @@ export default function FileDetailModal({
     }
   };
 
+  const downloadUrl = `/api/files/${file._id}/download`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
       <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl overflow-hidden">
@@ -255,7 +257,7 @@ export default function FileDetailModal({
 
           <div className="flex items-center gap-3">
             <a
-              href={file.fileUrl}
+              href={downloadUrl}
               download={file.originalName}
               className="bw-btn-secondary flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold"
             >
