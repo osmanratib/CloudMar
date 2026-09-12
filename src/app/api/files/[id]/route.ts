@@ -72,18 +72,20 @@ export async function PUT(request: NextRequest, context: Context) {
         const safeBaseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
         const newFileName = `${Date.now()}_${safeBaseName}_${uniqueHash}${ext}`;
 
-        let fileUrl = `/uploads/${newFileName}`;
+        let fileUrl = '';
+        const isProductionOrServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.NODE_ENV === 'production');
 
         if (isCloudinaryConfigured()) {
           const cloudResult = await uploadToCloudinary(buffer, originalName);
           fileUrl = cloudResult.url;
-        } else if (process.env.VERCEL) {
+        } else if (isProductionOrServerless) {
           const base64 = buffer.toString('base64');
           fileUrl = `data:${mimeType};base64,${base64}`;
         } else {
           const uploadDir = path.join(process.cwd(), 'public', 'uploads');
           const newFilePathOnDisk = path.join(uploadDir, newFileName);
           await writeFile(newFilePathOnDisk, buffer);
+          fileUrl = `/uploads/${newFileName}`;
         }
 
         existingFile.originalName = originalName;
@@ -125,7 +127,8 @@ export async function DELETE(request: NextRequest, context: Context) {
       return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 });
     }
 
-    if (!process.env.VERCEL) {
+    const isProductionOrServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.NODE_ENV === 'production');
+    if (!isProductionOrServerless) {
       const filePath = path.join(process.cwd(), 'public', 'uploads', file.fileName);
       try {
         await unlink(filePath);

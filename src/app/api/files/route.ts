@@ -102,20 +102,21 @@ export async function POST(request: NextRequest) {
     const safeBaseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileName = `${Date.now()}_${safeBaseName}_${uniqueHash}${ext}`;
 
-    let fileUrl = `/uploads/${fileName}`;
+    let fileUrl = '';
+    const isProductionOrServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.NODE_ENV === 'production');
 
-    // If Cloudinary is configured (or in production on Vercel)
     if (isCloudinaryConfigured()) {
       try {
         const cloudResult = await uploadToCloudinary(buffer, originalName);
         fileUrl = cloudResult.url;
-      } catch (cloudErr) {
+      } catch (cloudErr: unknown) {
         console.error('Cloudinary upload error:', cloudErr);
-        return NextResponse.json({ success: false, error: 'Cloud storage upload failed. Check Cloudinary environment variables.' }, { status: 500 });
+        const msg = cloudErr instanceof Error ? cloudErr.message : 'Cloudinary error';
+        return NextResponse.json({ success: false, error: `Cloudinary upload failed: ${msg}` }, { status: 500 });
       }
-    } else if (process.env.VERCEL) {
-      // In Vercel serverless without Cloudinary credentials configured yet:
-      // Store image as Data URL in MongoDB so uploads work immediately on Vercel!
+    } else if (isProductionOrServerless) {
+      // In production/serverless without Cloudinary credentials:
+      // Store image as Data URL in MongoDB so serverless NEVER attempts read-only disk writes!
       const base64 = buffer.toString('base64');
       fileUrl = `data:${mimeType};base64,${base64}`;
     } else {
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest) {
       }
       const filePathOnDisk = path.join(uploadDir, fileName);
       await writeFile(filePathOnDisk, buffer);
+      fileUrl = `/uploads/${fileName}`;
     }
 
     const newFile = await FileItem.create({
