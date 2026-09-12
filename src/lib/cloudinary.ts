@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from 'cloudinary';
+import path from 'path';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -15,12 +16,21 @@ export function isCloudinaryConfigured(): boolean {
   );
 }
 
-export async function uploadToCloudinary(buffer: Buffer, originalName: string, folder = 'cloudmar'): Promise<{ url: string; publicId: string }> {
+export async function uploadToCloudinary(
+  buffer: Buffer,
+  originalName: string,
+  folder = 'cloudmar'
+): Promise<{ url: string; publicId: string }> {
+  const ext = path.extname(originalName).toLowerCase();
+  const isImage = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.bmp', '.ico'].includes(ext);
+  // Images use 'image' resource_type, PDFs, DOCX, ZIPs use 'raw' resource_type to avoid Cloudinary PDF security locks
+  const resourceType = isImage ? 'image' : 'raw';
+
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
-        resource_type: 'auto',
+        resource_type: resourceType,
         use_filename: true,
         unique_filename: true,
       },
